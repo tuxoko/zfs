@@ -7,17 +7,10 @@ dnl # operation on directories for this purpose.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_AUTOMOUNT], [
 	AC_MSG_CHECKING([whether dops->d_automount() exists])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/dcache.h>
-		struct vfsmount *d_automount(struct path *p) { return NULL; }
-		struct dentry_operations dops __attribute__ ((unused)) = {
-			.d_automount = d_automount,
-		};
-	],[
-	],[
+	ZFS_AC_KERNEL_PARALLEL_TEST_IF([automount],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_AUTOMOUNT, 1, [dops->automount() exists])
 	],[
-		AC_MSG_RESULT(no)
+		_AC_MSG_LOG_CONFTEST m4_ifvaln([AC_MSG_RESULT(no)],[AC_MSG_RESULT(no)])
 	])
 ])

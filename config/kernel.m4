@@ -6,6 +6,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_SPL
 	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
+	ZFS_AC_KERNEL_PARALLEL_BUILD
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_TYPE_FMODE_T
@@ -449,6 +450,28 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 	])
 
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_PARALLEL_BUILD], [
+	AC_MSG_RESULT([building kernel test files])
+	make -C config/kernel LINUX_OBJ=$LINUX_OBJ >/dev/null 2>&1
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_PARALLEL_CLEAN], [
+	AC_MSG_RESULT([cleaning kernel test files])
+	make -C config/kernel clean >/dev/null 2>&1
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_PARALLEL_TEST_IF], [
+	AS_IF([test -d config/kernel/$1.build], [
+	],[
+		AC_MSG_ERROR([$1 not found in config/kernel])
+	])
+	AS_IF([test -f config/kernel/$1.build/$1.ko],[
+		$2
+	],[
+		$3
+	])
 ])
 
 dnl #
