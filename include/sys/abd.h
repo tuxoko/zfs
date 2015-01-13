@@ -66,8 +66,6 @@ extern "C" {
 )
 
 
-/* scatter ABD not enabled yet */
-#if 0
 /* purely virtual structure to prevent dereferencing */
 struct abd;
 typedef struct abd abd_t;
@@ -173,24 +171,6 @@ do {						\
 	do_abd_copy_from_buf_off(a, b, n, 0);	\
 	zio_buf_free(b, n);			\
 } while (0)
-#else
-typedef void abd_t;
-
-#define	ABD_IS_SCATTER(abd)	(0)
-#define	ABD_IS_LINEAR(abd)	(1)
-#define	ASSERT_ABD_SCATTER(abd)	((void)0)
-#define	ASSERT_ABD_LINEAR(abd)	((void)0)
-
-#define	abd_alloc	zio_data_buf_alloc
-#define	abd_free	zio_data_buf_free
-
-#define	ABD_FUNC_WRAPPER(abd, func, ...)		u_##func(__VA_ARGS__)
-#define	ABD_RET_FUNC_WRAPPER(type, abd, func, ...)	u_##func(__VA_ARGS__)
-#define	ABD_FUNC2_WRAPPER(abd1, abd2, func, ...)	u_##func(__VA_ARGS__)
-#define	ABD_RET_FUNC2_WRAPPER(type, abd1, abd2, func, ...) \
-	u_##func(__VA_ARGS__)
-
-#endif
 
 /*
  * ABD functions for linear type
