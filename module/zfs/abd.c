@@ -782,25 +782,18 @@ abd_copy_from_user_off(abd_t *abd, const void __user *buf, size_t size,
 	return (ret ? EFAULT : 0);
 }
 
-/*
- * uiomove for ABD.
- * @off is the offset in @abd
- */
-int
-abd_uiomove_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
+static int
+abd_uiomove_iov_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
     size_t off)
 {
-	struct iovec *iov;
+	const struct iovec *iov = uio->uio_iov;
+	size_t skip = uio->uio_skip;
 	ulong_t cnt;
 
+	ASSERT3U(skip, <, iov->iov_len);
+
 	while (n && uio->uio_resid) {
-		iov = uio->uio_iov;
-		cnt = MIN(iov->iov_len, n);
-		if (cnt == 0l) {
-			uio->uio_iov++;
-			uio->uio_iovcnt--;
-			continue;
-		}
+		cnt = MIN(iov->iov_len - skip, n);
 		switch (uio->uio_segflg) {
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
@@ -809,32 +802,90 @@ abd_uiomove_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
 			 * iov->iov_base = user data pointer
 			 */
 			if (rw == UIO_READ) {
-				if (abd_copy_to_user_off(iov->iov_base,
+				if (abd_copy_to_user_off(iov->iov_base+skip,
 				    abd, cnt, off))
 					return (EFAULT);
 			} else {
 				if (abd_copy_from_user_off(abd,
-				    iov->iov_base, cnt, off))
+				    iov->iov_base+skip, cnt, off))
 					return (EFAULT);
 			}
 			break;
 		case UIO_SYSSPACE:
 			if (rw == UIO_READ)
-				abd_copy_to_buf_off(iov->iov_base, abd,
+				abd_copy_to_buf_off(iov->iov_base + skip, abd,
 				    cnt, off);
 			else
-				abd_copy_from_buf_off(abd, iov->iov_base,
+				abd_copy_from_buf_off(abd, iov->iov_base + skip,
 				    cnt, off);
 			break;
+		default:
+			ASSERT(0);
 		}
-		iov->iov_base += cnt;
-		iov->iov_len -= cnt;
+		skip += cnt;
+		if (skip == iov->iov_len) {
+			skip = 0;
+			uio->uio_iov = (++iov);
+			uio->uio_iovcnt--;
+		}
+		uio->uio_skip = skip;
 		uio->uio_resid -= cnt;
 		uio->uio_loffset += cnt;
 		off += cnt;
 		n -= cnt;
 	}
 	return (0);
+}
+
+static int
+abd_uiomove_bvec_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
+    size_t off)
+{
+	const struct bio_vec *bv = uio->uio_bvec;
+	size_t skip = uio->uio_skip;
+	ulong_t cnt;
+
+	ASSERT3U(skip, <, bv->bv_len);
+
+	while (n && uio->uio_resid) {
+		void *paddr;
+		cnt = MIN(bv->bv_len - skip, n);
+
+		paddr = zfs_kmap_atomic(bv->bv_page, KM_USER1);
+		if (rw == UIO_READ)
+			abd_copy_to_buf_off(paddr + bv->bv_offset + skip, abd,
+			    cnt, off);
+		else
+			abd_copy_from_buf_off(abd, paddr + bv->bv_offset + skip,
+			    cnt, off);
+		zfs_kunmap_atomic(paddr, KM_USER1);
+
+		skip += cnt;
+		if (skip == bv->bv_len) {
+			skip = 0;
+			uio->uio_bvec = (++bv);
+			uio->uio_iovcnt--;
+		}
+		uio->uio_skip = skip;
+		uio->uio_resid -= cnt;
+		uio->uio_loffset += cnt;
+		off += cnt;
+		n -= cnt;
+	}
+	return (0);
+}
+
+/*
+ * uiomove for ABD.
+ * @off is the offset in @abd
+ */
+int
+abd_uiomove_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio, size_t off)
+{
+	if (uio->uio_segflg != UIO_BVEC)
+		return (abd_uiomove_iov_off(abd, n, rw, uio, off));
+	else
+		return (abd_uiomove_bvec_off(abd, n, rw, uio, off));
 }
 
 /*
@@ -845,53 +896,13 @@ int
 abd_uiocopy_off(abd_t *abd, size_t n, enum uio_rw rw, uio_t *uio,
     size_t *cbytes, size_t off)
 {
-	struct iovec *iov;
-	ulong_t cnt;
-	int iovcnt;
+	struct uio uio_copy;
+	int ret;
 
-	iovcnt = uio->uio_iovcnt;
-	*cbytes = 0;
-
-	for (iov = uio->uio_iov; n && iovcnt; iov++, iovcnt--) {
-		cnt = MIN(iov->iov_len, n);
-		if (cnt == 0)
-			continue;
-
-		switch (uio->uio_segflg) {
-
-		case UIO_USERSPACE:
-		case UIO_USERISPACE:
-			/*
-			 * p = kernel data pointer
-			 * iov->iov_base = user data pointer
-			 */
-			if (rw == UIO_READ) {
-				/* UIO_READ = copy data from kernel to user */
-				if (abd_copy_to_user_off(iov->iov_base,
-				    abd, cnt, off))
-					return (EFAULT);
-			} else {
-				/* UIO_WRITE = copy data from user to kernel */
-				if (abd_copy_from_user_off(abd,
-				    iov->iov_base, cnt, off))
-					return (EFAULT);
-			}
-			break;
-
-		case UIO_SYSSPACE:
-			if (rw == UIO_READ)
-				abd_copy_to_buf_off(iov->iov_base, abd,
-				    cnt, off);
-			else
-				abd_copy_from_buf_off(abd, iov->iov_base,
-				    cnt, off);
-			break;
-		}
-		off += cnt;
-		n -= cnt;
-		*cbytes += cnt;
-	}
-	return (0);
+	bcopy(uio, &uio_copy, sizeof (struct uio));
+	ret = abd_uiomove_off(abd, n, rw, &uio_copy, off);
+	*cbytes = uio->uio_resid - uio_copy.uio_resid;
+	return (ret);
 }
 
 /*
