@@ -1705,7 +1705,6 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 	avl_index_t where;
 	objset_t *ref_os = NULL;
 	dmu_buf_t *dbp;
-	void *buf;
 
 	if (drrwbr->drr_offset + drrwbr->drr_length < drrwbr->drr_offset)
 		return (SET_ERROR(EINVAL));
@@ -1740,10 +1739,8 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	buf = abd_borrow_buf_copy(dbp->db_data, drrwbr->drr_length);
-	dmu_write(os, drrwbr->drr_object,
-	    drrwbr->drr_offset, drrwbr->drr_length, buf, tx);
-	abd_return_buf(dbp->db_data, buf, drrwbr->drr_length);
+	dmu_write_abd(os, drrwbr->drr_object,
+	    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
 	dmu_buf_rele(dbp, FTAG);
 	dmu_tx_commit(tx);
 	return (0);
