@@ -229,6 +229,15 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	if (bp->blk_birth == 0) {
 		/*
+		 * david.chen:
+		 * Disable the skip hole feature entirely.
+		 * See bc77ba73fec82d37c0b57949ec29edd9aa207677. Since this
+		 * issue exists before 0.6.4.2, there can be a lot of pools
+		 * already have lost hole birth time. So we disable skipping
+		 * hole entirely.
+		 */
+#if 0
+		/*
 		 * Since this block has a birth time of 0 it must be one of
 		 * two things: a hole created before the
 		 * SPA_FEATURE_HOLE_BIRTH feature was enabled, or a hole
@@ -254,6 +263,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			zb->zb_object == DMU_META_DNODE_OBJECT) &&
 			td->td_hole_birth_enabled_txg <= td->td_min_txg)
 			return (0);
+#endif
 	} else if (bp->blk_birth <= td->td_min_txg) {
 		return (0);
 	}
