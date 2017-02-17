@@ -5486,6 +5486,11 @@ arc_init(void)
 		    zfs_dirty_data_max_percent / 100;
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
+		/*
+		 * limit default value to 1G to prevent dirty data growing too
+		 * large on large memory system.
+		 */
+		zfs_dirty_data_max = MIN(zfs_dirty_data_max, 1024*1024*1024);
 	}
 }
 
