@@ -147,6 +147,8 @@
 #include <sys/dsl_scan.h>
 #include <sys/fs/zfs.h>
 
+static int zfs_rewind_ignore_label_txg = 0;
+
 /*
  * Basic routines to read and write from a vdev label.
  * Used throughout the rest of this file.
@@ -471,7 +473,8 @@ retry:
 			if ((error || label_txg == 0) && !config) {
 				config = label;
 				break;
-			} else if (label_txg <= txg && label_txg > best_txg) {
+			} else if ((label_txg <= txg && label_txg > best_txg) ||
+			    (zfs_rewind_ignore_label_txg && label_txg > best_txg)) {
 				best_txg = label_txg;
 				nvlist_free(config);
 				config = fnvlist_dup(label);
@@ -1280,3 +1283,9 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg, boolean_t tryhard)
 	 */
 	return (vdev_label_sync_list(spa, 1, txg, flags));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_rewind_ignore_label_txg, int, 0644);
+MODULE_PARM_DESC(zfs_rewind_ignore_label_txg,
+    "ignore label txg check when doing rewind import");
+#endif
