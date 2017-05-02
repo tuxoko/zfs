@@ -176,9 +176,24 @@ range_tree_add(void *arg, uint64_t start, uint64_t size)
 	rs = avl_find(&rt->rt_root, &rsearch, &where);
 
 	if (rs != NULL && rs->rs_start <= start && rs->rs_end >= end) {
+#ifdef _KERNEL
+		static DEFINE_RATELIMIT_STATE(rls, DEFAULT_RATELIMIT_INTERVAL,
+		    DEFAULT_RATELIMIT_BURST);
+
+		if (__ratelimit(&rls)) {
+			cmn_err(CE_WARN, "zfs: allocating allocated segment"
+			    "(offset=%llu size=%llu) from %pS\n",
+			    (longlong_t)start, (longlong_t)size, _RET_IP_);
+			cmn_err(CE_WARN, "zfs: previous segment"
+			    "(offset=%llu size=%llu)\n",
+			    (longlong_t)rs->rs_start,
+			    (longlong_t)(rs->rs_end - rs->rs_start));
+		}
+#else
 		zfs_panic_recover("zfs: allocating allocated segment"
 		    "(offset=%llu size=%llu)\n",
 		    (longlong_t)start, (longlong_t)size);
+#endif
 		return;
 	}
 
