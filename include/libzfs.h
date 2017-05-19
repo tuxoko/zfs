@@ -25,6 +25,7 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #ifndef	_LIBZFS_H
@@ -258,6 +259,8 @@ extern int zpool_scan(zpool_handle_t *, pool_scan_func_t);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 extern int zpool_reguid(zpool_handle_t *);
 extern int zpool_reopen(zpool_handle_t *);
+
+extern int zpool_sync_one(zpool_handle_t *, void *);
 
 extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);

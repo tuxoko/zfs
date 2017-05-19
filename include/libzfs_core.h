@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #ifndef	_LIBZFS_CORE_H
@@ -64,6 +65,8 @@ int lzc_send_space(const char *, const char *, uint64_t *);
 boolean_t lzc_exists(const char *);
 
 int lzc_rollback(const char *, char *, int);
+
+int lzc_sync(const char *, nvlist_t *, nvlist_t **);
 
 #ifdef	__cplusplus
 }
